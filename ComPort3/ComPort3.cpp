@@ -299,7 +299,7 @@ int main(int argc, TCHAR* argv[])
 
 	while (ReadingFlag)
 	{
-		if (send(clientSock, ".", 1, 0) != -1) {
+		if (send(clientSock, "", 0, 0) != -1) {
 			recivedData = ReadCom();
 			cout << iSize << " bytes accept\n";
 			if (iSize > 0) {
