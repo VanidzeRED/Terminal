@@ -217,8 +217,6 @@ int main(int argc, TCHAR* argv[])
 	//}
 	while (ReadingFlag)
 	{
-		
-		
 		cout << send(clientSock, ReadCom(), iSize, 0) << " bytes sended to socket\n";
 		Sleep(1000);
 	}

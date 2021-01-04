@@ -19,7 +19,7 @@ const int strSize = 128;
 DWORD iSize;
 LPCTSTR sPortName = L"COM3";
 LPCTSTR FileName = L"info.txt";
-char adress[] = "192.168.0.104";
+char adress[] = "192.168.43.223";
 int port = 2121;
 
 class RingBuffer
@@ -299,25 +299,19 @@ int main(int argc, TCHAR* argv[])
 
 	while (ReadingFlag)
 	{
-		if (send(clientSock, ".", 1, 0) != -1) {
-			recivedData = ReadCom();
-			cout << iSize << " bytes accept\n";
-			if (iSize > 0) {
-				for (int i = 0; i < iSize; i++) {
-					cout << recivedData[i];
-				}
-				cout << "\n";
-			}
-			cout << send(clientSock, recivedData, iSize, 0) << " bytes sended to socket\n";
+		if (send(clientSock, ".", 1, 1) != -1) {
+			cout << send(clientSock, ReadCom(), iSize, 0) << " bytes sended to socket\n";
+			Sleep(100);
 		}
 		else {
+			cout << "Connection lost";
 			recivedData = ReadCom();
 			for (int i = 0; i < iSize; i++) {
 				cout << recivedData[i];
 				buffer.Write(recivedData[i]);
 			}
 		}
-		Sleep(1000);
+		Sleep(100);
 	}
 	getchar();
 }
