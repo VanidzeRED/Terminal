@@ -19,7 +19,7 @@ const int strSize = 128;
 DWORD iSize;
 LPCTSTR sPortName = L"COM3";
 LPCTSTR FileName = L"info.txt";
-char adress[] = "192.168.43.223";
+char adress[] = "192.168.0.106";
 int port = 2121;
 
 class RingBuffer
@@ -218,9 +218,7 @@ char* ReadCom()
 		{
 			ComPortOpen();
 			DCBParams();
-		}
-		else
-		{
+		} else {
 			if (GetLastError() == Code10053) {
 				cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
 				ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
@@ -240,9 +238,7 @@ char* ReadCom()
 				for (uint16_t i = 0; i < buffer.Count(); i++) {
 					buffer.Read(RecivedChar[i]);
 				}
-			}
-			else
-			{
+			} else {
 				cout << "Some other error on reading.\n" << GetLastError() << "\n";
 				if (GetLastError() == Code39)
 				{
@@ -299,11 +295,10 @@ int main(int argc, TCHAR* argv[])
 
 	while (ReadingFlag)
 	{
-		if (send(clientSock, ".", 1, 1) != -1) {
+		if (send(clientSock, "", 1, 0) != -1) {
 			cout << send(clientSock, ReadCom(), iSize, 0) << " bytes sended to socket\n";
 			Sleep(100);
-		}
-		else {
+		} else {
 			cout << "Connection lost";
 			recivedData = ReadCom();
 			for (int i = 0; i < iSize; i++) {
