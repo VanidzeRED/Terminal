@@ -220,7 +220,7 @@ char* ReadCom()
 			DCBParams();
 		} else {
 			if (GetLastError() == Code10053) {
-				cout << "\n\n1.Client connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
+				cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
 				ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
 				if (iSize > 0) {
 					cout << iSize << " bytes accept\n";
@@ -231,19 +231,23 @@ char* ReadCom()
 					cout << "\n";
 				}
 				BOOL iRet = WriteFile(File, RecivedChar, iSize, wrSize, NULL);
-				cout << "2.Client connection lost, waiting for next connection\n";
 				CloseConnection();
 				CreateServer(port, adress);
 				clientSock = accept(s, NULL, NULL);
 				for (uint16_t i = 0; i < buffer.Count(); i++) {
 					buffer.Read(RecivedChar[i]);
 				}
-			} else {
-				cout << "Some other error on reading.\n" << GetLastError() << "\n";
+			} 
+			else 
+			{
 				if (GetLastError() == Code39)
 				{
 					cout << "No memory\n";
 					Ending();
+				}
+				else
+				{
+					cout << "Some other error on reading.\n" << GetLastError() << "\n";
 				}
 			}
 		}
@@ -291,14 +295,21 @@ int main(int argc, TCHAR* argv[])
 		Sleep(1000);
 		cout << "You'll newer see me ;)" << endl;
 	}
-	clientSock = accept(s, NULL, NULL);
+
+		//TODO: Добавить цикл while на чтение, пока не произойдёт подключение
+
+	clientSock = accept(s, NULL, NULL);  
 	cout << "Client accepted\n";
 	char* recivedData;
+	int sendedBytes;
 
 	while (ReadingFlag)
 	{
 		if (send(clientSock, "", 1, 0) != -1) {
-			cout << send(clientSock, ReadCom(), iSize, 0) << " bytes sended to socket\n";
+			sendedBytes = send(clientSock, ReadCom(), iSize, 0);
+			if (sendedBytes != 0) {
+				cout << sendedBytes << " bytes sended to socket\n";
+			}
 			Sleep(100);
 		} else {
 			cout << "Connection lost";
