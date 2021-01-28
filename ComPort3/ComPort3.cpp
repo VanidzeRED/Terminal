@@ -220,7 +220,7 @@ char* ReadCom()
 			DCBParams();
 		} else {
 			if (GetLastError() == Code10053) {
-				cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
+				cout << "\n\n1.Client connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
 				ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
 				if (iSize > 0) {
 					cout << iSize << " bytes accept\n";
@@ -268,7 +268,9 @@ int main(int argc, TCHAR* argv[])
 		{
 			cout << "Serial port does not exist.\n";
 		}
-		cout << "Some other error on opening.\n" << GetLastError() << "\n";
+		else {
+			cout << "Some other error on opening.\n" << GetLastError() << "\n";
+		}
 		Sleep(1000);
 		ComPortOpen();
 	}
