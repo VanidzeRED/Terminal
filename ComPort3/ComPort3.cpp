@@ -296,11 +296,30 @@ int main(int argc, TCHAR* argv[])
 		cout << "You'll newer see me ;)" << endl;
 	}
 
-		//TODO: Добавить цикл while на чтение, пока не произойдёт подключение
-
-	clientSock = accept(s, NULL, NULL);  
-	cout << "Client accepted\n";
 	char* recivedData;
+	while (clientSock == AF_UNSPEC) {
+		LPDWORD wrSize = 0;
+		char RecivedChar[strSize];
+		
+		ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
+		if (iSize > 0) {
+			cout << iSize << " bytes accept\n";
+			for (int i = 0; i < iSize; i++) {
+				cout << RecivedChar[i];
+				buffer.Write(RecivedChar[i]);
+			}
+			cout << "\n";
+		}
+		BOOL iRet = WriteFile(File, RecivedChar, iSize, wrSize, NULL);
+		clientSock = accept(s, NULL, NULL);
+		for (uint16_t i = 0; i < buffer.Count(); i++) {
+			buffer.Read(RecivedChar[i]);
+		}
+
+	}
+
+	cout << "Client accepted\n";
+
 	int sendedBytes;
 
 	while (ReadingFlag)
