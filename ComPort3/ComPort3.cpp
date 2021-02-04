@@ -22,6 +22,8 @@ LPCTSTR FileName = L"info.txt";
 char adress[] = "192.168.0.106";
 int port = 2121;
 
+//TODO: параметры переместить в config-файл
+
 class RingBuffer
 {
 private:
@@ -97,15 +99,22 @@ void ComPortOpen()
 	cout << "Port opened\n";
 }
 
-void DCBParams()
+void DCBConfigure(DCB* dcbSerialParams, HANDLE serialPort)
 {
-	DCB  dcbSerialParams = { 0 };
-	dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
-	dcbSerialParams.BaudRate = CBR_9600;
-	dcbSerialParams.ByteSize = 8;
-	dcbSerialParams.StopBits = ONESTOPBIT;
-	dcbSerialParams.Parity = NOPARITY;
-	dcbSerialParams.fAbortOnError = TRUE;
+	if (!GetCommState(serialPort, dcbSerialParams))
+	{
+		throw runtime_error("error getting state of com-port\n");
+	}
+	dcbSerialParams->DCBlength = sizeof(dcbSerialParams);
+	dcbSerialParams->BaudRate = CBR_9600;
+	dcbSerialParams->ByteSize = 8;
+	dcbSerialParams->StopBits = ONESTOPBIT;
+	dcbSerialParams->Parity = NOPARITY;
+	dcbSerialParams->fAbortOnError = TRUE;
+	if (!SetCommState(serialPort, dcbSerialParams))
+	{
+		throw runtime_error("error setting state of com-port\n");
+	}
 	cout << "DCB params set\n";
 }
 
@@ -217,7 +226,8 @@ char* ReadCom()
 		if (hSerial == INVALID_HANDLE_VALUE)
 		{
 			ComPortOpen();
-			DCBParams();
+			DCB  dcbSerialParams;
+			DCBConfigure(&dcbSerialParams, hSerial);
 		} else {
 			if (GetLastError() == Code10053) {
 				cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
@@ -278,24 +288,17 @@ int main(int argc, TCHAR* argv[])
 		Sleep(1000);
 		ComPortOpen();
 	}
-	DCB  dcbSerialParams = { 0 };
-	dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
 
-	while (!GetCommState(hSerial, &dcbSerialParams))
-	{
-		cout << "Getting state error\n";
-		cout << GetLastError();
-		Sleep(1000);
-		ComPortOpen();
-	}
+	DCB  dcbSerialParams;
+	DCBConfigure(&dcbSerialParams, hSerial);			// Получение параметров порта и их переназначение
 
-	DCBParams();
-	
+	//TODO: try-catch
+	/*
 	while (!CreateServer(port, adress)) {               //  Создание сервера. На вход порт и IP
 		Sleep(1000);
 		cout << "You'll newer see me ;)" << endl;
 	}
-
+	
 	char* recivedData;
 	while (clientSock == AF_UNSPEC) {
 		LPDWORD wrSize = 0;
@@ -321,24 +324,28 @@ int main(int argc, TCHAR* argv[])
 	cout << "Client accepted\n";
 
 	int sendedBytes;
+	*/
+
+	char* recivedData;
 
 	while (ReadingFlag)
 	{
-		if (send(clientSock, "", 1, 0) != -1) {
+		/*if (send(clientSock, "", 1, 0) != -1) {
 			sendedBytes = send(clientSock, ReadCom(), iSize, 0);
 			if (sendedBytes != 0) {
 				cout << sendedBytes << " bytes sended to socket\n";
 			}
 			Sleep(100);
-		} else {
-			cout << "Connection lost";
+		} else {*/
+			//cout << "Connection lost";
 			recivedData = ReadCom();
 			for (int i = 0; i < iSize; i++) {
 				cout << recivedData[i];
 				buffer.Write(recivedData[i]);
 			}
-		}
+		//}
 		Sleep(100);
 	}
+	
 	getchar();
 }
