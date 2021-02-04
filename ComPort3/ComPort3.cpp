@@ -17,7 +17,7 @@ SOCKET clientSock;
 int ReadingFlag = 1;
 const int strSize = 128;
 DWORD iSize;
-LPCTSTR sPortName = L"COM3";
+LPCTSTR sPortName = L"COM6";
 LPCTSTR FileName = L"info.txt";
 char adress[] = "192.168.0.106";
 int port = 2121;
@@ -211,41 +211,42 @@ void CloseConnection()
 	WSACleanup();
 }
 
-char* ReadCom()
+void ReadCom(char* dataBuffer)
 {
 	OFSTRUCT Buff = { 0 };
 	iSize = 0;
 	LPDWORD wrSize=0;
+	DWORD Code22 = 22;
 	DWORD Code39 = 39;
 	DWORD Code10038 = 10038;
 	DWORD Code10053 = 10053;
-	char RecivedChar[strSize];
 
 	if ((GetLastError()) && (GetLastError() != Code10038))
 	{
-		if (hSerial == INVALID_HANDLE_VALUE)
+		if (GetLastError() == Code22)
 		{
+			cout << "Com-port connection lost\n";
 			ComPortOpen();
 			DCB  dcbSerialParams;
 			DCBConfigure(&dcbSerialParams, hSerial);
 		} else {
 			if (GetLastError() == Code10053) {
 				cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
-				ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
+				ReadFile(hSerial, dataBuffer, strSize, &iSize, NULL);
 				if (iSize > 0) {
 					cout << iSize << " bytes accept\n";
 					for (int i = 0; i < iSize; i++) {
-						cout << RecivedChar[i];
-						buffer.Write(RecivedChar[i]);
+						cout << dataBuffer[i];
+						buffer.Write(dataBuffer[i]);
 					}
 					cout << "\n";
 				}
-				BOOL iRet = WriteFile(File, RecivedChar, iSize, wrSize, NULL);
+				BOOL iRet = WriteFile(File, dataBuffer, iSize, wrSize, NULL);
 				CloseConnection();
 				CreateServer(port, adress);
 				clientSock = accept(s, NULL, NULL);
 				for (uint16_t i = 0; i < buffer.Count(); i++) {
-					buffer.Read(RecivedChar[i]);
+					buffer.Read(dataBuffer[i]);
 				}
 			} 
 			else 
@@ -264,10 +265,11 @@ char* ReadCom()
 	}
 	else
 	{
-		ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
-		BOOL iRet = WriteFile(File, RecivedChar, iSize, wrSize, NULL);
+		ReadFile(hSerial, dataBuffer, 10, &iSize, NULL);
+		cout << "Bytes read" << iSize << "\n";
+		//ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
+		BOOL iRet = WriteFile(File, dataBuffer, iSize, wrSize, NULL);
 	}
-	return RecivedChar;
 	
 }
 
@@ -326,7 +328,7 @@ int main(int argc, TCHAR* argv[])
 	int sendedBytes;
 	*/
 
-	char* recivedData;
+	char recivedData[strSize];
 
 	while (ReadingFlag)
 	{
@@ -338,10 +340,11 @@ int main(int argc, TCHAR* argv[])
 			Sleep(100);
 		} else {*/
 			//cout << "Connection lost";
-			recivedData = ReadCom();
+			ReadCom(recivedData);
 			for (int i = 0; i < iSize; i++) {
-				cout << recivedData[i];
-				buffer.Write(recivedData[i]);
+				char a = recivedData[i];
+				cout << a;
+				//buffer.Write(recivedData[i]);
 			}
 		//}
 		Sleep(100);
