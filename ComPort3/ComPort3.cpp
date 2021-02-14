@@ -17,7 +17,7 @@ SOCKET clientSock;
 int ReadingFlag = 1;
 const int strSize = 128;
 DWORD iSize;
-LPCTSTR sPortName = L"COM6";
+LPCTSTR sPortName = L"COM3";
 LPCTSTR FileName = L"info.txt";
 char adress[] = "192.168.0.106";
 int port = 2121;
@@ -223,10 +223,25 @@ void ReadCom(char* dataBuffer)
 
 	if ((GetLastError()) && (GetLastError() != Code10038))
 	{
-		if (GetLastError() == Code22)
+		if (hSerial == INVALID_HANDLE_VALUE)
 		{
-			cout << "Com-port connection lost\n";
-			ComPortOpen();
+			while (hSerial == INVALID_HANDLE_VALUE)
+			{
+				if (GetLastError() == ERROR_FILE_NOT_FOUND)
+				{
+					cout << "Serial port does not exist.\n";
+				}
+				if (GetLastError() == Code22)
+				{
+					cout << "Com port Connection lost\n";
+				}
+				else {
+					cout << "Some other error on opening.\n" << GetLastError() << "\n";
+				}
+				Sleep(1000);
+				ComPortOpen();
+			}
+
 			DCB  dcbSerialParams;
 			DCBConfigure(&dcbSerialParams, hSerial);
 		} else {
@@ -265,9 +280,8 @@ void ReadCom(char* dataBuffer)
 	}
 	else
 	{
-		ReadFile(hSerial, dataBuffer, 10, &iSize, NULL);
-		cout << "Bytes read" << iSize << "\n";
-		//ReadFile(hSerial, RecivedChar, strSize, &iSize, NULL);
+		int i = 0;
+		ReadFile(hSerial, dataBuffer, 1, &iSize, NULL);
 		BOOL iRet = WriteFile(File, dataBuffer, iSize, wrSize, NULL);
 	}
 	
