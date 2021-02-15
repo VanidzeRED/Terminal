@@ -223,6 +223,7 @@ void ReadCom(char* dataBuffer)
 
 	if ((GetLastError()) && (GetLastError() != Code10038))
 	{
+		throw (runtime_error("Exception throwed\n"));
 		if (hSerial == INVALID_HANDLE_VALUE)
 		{
 			while (hSerial == INVALID_HANDLE_VALUE)
@@ -354,12 +355,18 @@ int main(int argc, TCHAR* argv[])
 			Sleep(100);
 		} else {*/
 			//cout << "Connection lost";
+		try {
 			ReadCom(recivedData);
 			for (int i = 0; i < iSize; i++) {
 				char a = recivedData[i];
 				cout << a;
 				//buffer.Write(recivedData[i]);
 			}
+		}
+		catch (runtime_error){
+			Ending();
+		}
+			
 		//}
 		Sleep(100);
 	}
