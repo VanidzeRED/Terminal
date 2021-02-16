@@ -8,21 +8,18 @@
 
 using namespace std;
 
-HANDLE hSerial;
-HANDLE File;
-
 SOCKET s;
 SOCKET clientSock;
 
 int ReadingFlag = 1;
 const int strSize = 128;
 DWORD iSize;
-LPCTSTR sPortName = L"COM3";
+LPCTSTR sPortName = L"COM6";
 LPCTSTR FileName = L"info.txt";
 char adress[] = "192.168.0.106";
 int port = 2121;
 
-//TODO: параметры переместить в config-файл
+//TODO: параметры переместить в config-файл (*.h)
 
 class RingBuffer
 {
@@ -93,10 +90,11 @@ public:
 
 	RingBuffer buffer;
 
-void ComPortOpen()
+HANDLE ComPortOpen()
 {
-	hSerial = ::CreateFile(sPortName, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	HANDLE serialPort = ::CreateFile(sPortName, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 	cout << "Port opened\n";
+	return serialPort;
 }
 
 void DCBConfigure(DCB* dcbSerialParams, HANDLE serialPort)
@@ -118,11 +116,11 @@ void DCBConfigure(DCB* dcbSerialParams, HANDLE serialPort)
 	cout << "DCB params set\n";
 }
 
-void Ending()
+void Ending(HANDLE serialPort, HANDLE dataFile)
 {
 	ReadingFlag = 0;
-	CloseHandle(hSerial);
-	CloseHandle(File);
+	CloseHandle(serialPort);
+	CloseHandle(dataFile);
 	cout << "Programm finished\n";
 }
 
@@ -211,87 +209,74 @@ void CloseConnection()
 	WSACleanup();
 }
 
-void ReadCom(char* dataBuffer)
+#define ERRCODE_NOMEMORY ((DWORD)39)
+
+void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 {
 	OFSTRUCT Buff = { 0 };
 	iSize = 0;
 	LPDWORD wrSize=0;
 	DWORD Code22 = 22;
 	DWORD Code39 = 39;
+	DWORD Code995 = 995;
 	DWORD Code10038 = 10038;
 	DWORD Code10053 = 10053;
 
 	if ((GetLastError()) && (GetLastError() != Code10038))
 	{
-		throw (runtime_error("Exception throwed\n"));
-		if (hSerial == INVALID_HANDLE_VALUE)
+		if (GetLastError() == Code995 || GetLastError() == Code22)
 		{
-			while (hSerial == INVALID_HANDLE_VALUE)
-			{
-				if (GetLastError() == ERROR_FILE_NOT_FOUND)
-				{
-					cout << "Serial port does not exist.\n";
+			cout << "\nCom-port connection lost.\n" << GetLastError() << "\n";
+			throw (runtime_error("Exception throwed\n"));
+		}
+		if (GetLastError() == Code10053) 
+		{
+			cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
+			ReadFile(serialPort, dataBuffer, strSize, &iSize, NULL);
+			if (iSize > 0) {
+				cout << iSize << " bytes accept\n";
+				for (int i = 0; i < iSize; i++) {
+					cout << dataBuffer[i];
+					buffer.Write(dataBuffer[i]);
 				}
-				if (GetLastError() == Code22)
-				{
-					cout << "Com port Connection lost\n";
-				}
-				else {
-					cout << "Some other error on opening.\n" << GetLastError() << "\n";
-				}
-				Sleep(1000);
-				ComPortOpen();
+				cout << "\n";
 			}
-
-			DCB  dcbSerialParams;
-			DCBConfigure(&dcbSerialParams, hSerial);
-		} else {
-			if (GetLastError() == Code10053) {
-				cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
-				ReadFile(hSerial, dataBuffer, strSize, &iSize, NULL);
-				if (iSize > 0) {
-					cout << iSize << " bytes accept\n";
-					for (int i = 0; i < iSize; i++) {
-						cout << dataBuffer[i];
-						buffer.Write(dataBuffer[i]);
-					}
-					cout << "\n";
-				}
-				BOOL iRet = WriteFile(File, dataBuffer, iSize, wrSize, NULL);
-				CloseConnection();
-				CreateServer(port, adress);
-				clientSock = accept(s, NULL, NULL);
+			BOOL iRet = WriteFile(dataFile, dataBuffer, iSize, wrSize, NULL);
+			CloseConnection();
+			CreateServer(port, adress);
+			clientSock = accept(s, NULL, NULL);
 				for (uint16_t i = 0; i < buffer.Count(); i++) {
-					buffer.Read(dataBuffer[i]);
-				}
-			} 
-			else 
+				buffer.Read(dataBuffer[i]);
+			}
+		} 
+		else 
+		{
+			if (GetLastError() == Code39)
 			{
-				if (GetLastError() == Code39)
-				{
-					cout << "No memory\n";
-					Ending();
-				}
-				else
-				{
-					cout << "Some other error on reading.\n" << GetLastError() << "\n";
-				}
+				cout << "No memory\n";
+				Ending(serialPort, dataFile);
+			}
+			else
+			{
+				cout << "Some other error on reading.\n" << GetLastError() << "\n";
 			}
 		}
 	}
 	else
 	{
 		int i = 0;
-		ReadFile(hSerial, dataBuffer, 1, &iSize, NULL);
-		BOOL iRet = WriteFile(File, dataBuffer, iSize, wrSize, NULL);
+		ReadFile(serialPort, dataBuffer, 1, &iSize, NULL);
+		BOOL iRet = WriteFile(dataFile, dataBuffer, iSize, wrSize, NULL);
 	}
 	
 }
 
 int main(int argc, TCHAR* argv[])
 {
-	File = ::CreateFile(FileName, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
-	ComPortOpen();
+	HANDLE hSerial;
+	HANDLE file;
+	file = ::CreateFile(FileName, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+	hSerial = ComPortOpen();
 	
 	while (hSerial == INVALID_HANDLE_VALUE)
 	{
@@ -303,7 +288,7 @@ int main(int argc, TCHAR* argv[])
 			cout << "Some other error on opening.\n" << GetLastError() << "\n";
 		}
 		Sleep(1000);
-		ComPortOpen();
+		hSerial = ComPortOpen();
 	}
 
 	DCB  dcbSerialParams;
@@ -356,15 +341,31 @@ int main(int argc, TCHAR* argv[])
 		} else {*/
 			//cout << "Connection lost";
 		try {
-			ReadCom(recivedData);
+			ReadCom(recivedData, hSerial, file);
 			for (int i = 0; i < iSize; i++) {
 				char a = recivedData[i];
 				cout << a;
 				//buffer.Write(recivedData[i]);
 			}
 		}
-		catch (runtime_error){
-			Ending();
+		catch (runtime_error e){
+			cout << e.what();
+			CloseHandle(hSerial);
+			while (GetLastError())
+			{
+				if (GetLastError() == ERROR_FILE_NOT_FOUND)
+				{
+					cout << "Serial port does not exist.\n";
+				}
+				else {
+					cout << "Some other error on opening.\n" << GetLastError() << "\n";
+				}
+				Sleep(1000);
+				hSerial = ComPortOpen();
+			}
+
+			DCB  dcbSerialParams;
+			DCBConfigure(&dcbSerialParams, hSerial);
 		}
 			
 		//}
