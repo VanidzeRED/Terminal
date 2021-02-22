@@ -3,6 +3,7 @@
 #include <winsock.h>
 #include <string>
 #include <sstream>
+#include "TerminalHeader.h"
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -13,10 +14,17 @@ SOCKET clientSock;
 
 int ReadingFlag = 1;
 DWORD iSize;
-LPCTSTR sPortName = L"COM3";
-LPCTSTR FileName = L"info.txt";
-char adress[] = "192.168.0.106";
-int port = 2121;
+
+#define ERRCODE_UNKNOWNCOMMAND ((DWORD)22)
+#define ERRCODE_NOMEMORY ((DWORD)39)
+#define ERRCODE_READWRITEINTERUUPT ((DWORD)995)
+#define ERRCODE_NONSOCKETOBJECT ((DWORD)10038)
+#define ERRCODE_HOSTCONNECTIONLOST ((DWORD)10053)
+#define HOSTIP ((char*)"192.168.0.106")
+#define DATAFILENAME ((LPCTSTR)L"info.txt")
+#define COMPORTNAME ((LPCTSTR)L"COM3")
+#define SOCKETPORT ((int)2121)
+
 
 //TODO: параметры переместить в config-файл (*.h)
 
@@ -91,7 +99,7 @@ public:
 
 HANDLE ComPortOpen()
 {
-	HANDLE serialPort = ::CreateFile(sPortName, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	HANDLE serialPort = ::CreateFile(COMPORTNAME, GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 	cout << "Port opened\n";
 	return serialPort;
 }
@@ -208,32 +216,23 @@ void CloseConnection()
 	WSACleanup();
 }
 
-#define ERRCODE_NOMEMORY ((DWORD)39)
-
 void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 {
 	OFSTRUCT Buff = { 0 };
-	iSize = 0;
-	PLARGE_INTEGER strSize = 0;
+    int strSize;
 	LPDWORD wrSize=0;
-	DWORD Code22 = 22;
-	DWORD Code39 = 39;
-	DWORD Code995 = 995;
-	DWORD Code10038 = 10038;
-	DWORD Code10053 = 10053;
 
-	if ((GetLastError()) && (GetLastError() != Code10038))
+	if ((GetLastError()) && (GetLastError() != ERRCODE_NONSOCKETOBJECT))
 	{
-		if (GetLastError() == Code995 || GetLastError() == Code22)
+		if (GetLastError() == ERRCODE_READWRITEINTERUUPT || GetLastError() == ERRCODE_UNKNOWNCOMMAND)
 		{
 			cout << "\nCom-port connection lost.\n" << GetLastError() << "\n";
 			throw (runtime_error("Exception throwed\n"));
 		}
-		if (GetLastError() == Code10053) 
+		if (GetLastError() == ERRCODE_HOSTCONNECTIONLOST)
 		{
 			cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
-			GetFileSizeEx(serialPort, strSize);
-			ReadFile(serialPort, dataBuffer, ((int)strSize), &iSize, NULL);
+			ReadFile(serialPort, dataBuffer, 1, &iSize, NULL);
 			if (iSize > 0) {
 				cout << iSize << " bytes accept\n";
 				for (int i = 0; i < iSize; i++) {
@@ -244,7 +243,7 @@ void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 			}
 			BOOL iRet = WriteFile(dataFile, dataBuffer, iSize, wrSize, NULL);
 			CloseConnection();
-			CreateServer(port, adress);
+			CreateServer(SOCKETPORT, HOSTIP);
 			clientSock = accept(s, NULL, NULL);
 				for (uint16_t i = 0; i < buffer.Count(); i++) {
 				buffer.Read(dataBuffer[i]);
@@ -252,7 +251,7 @@ void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 		} 
 		else 
 		{
-			if (GetLastError() == Code39)
+			if (GetLastError() == ERRCODE_NOMEMORY)
 			{
 				cout << "No memory\n";
 				Ending(serialPort, dataFile);
@@ -265,9 +264,13 @@ void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 	}
 	else
 	{
+		char c;
 		int i = 0;
-		GetFileSizeEx(serialPort, strSize);
-		ReadFile(serialPort, dataBuffer, ((int)strSize), &iSize, NULL);
+		do {
+			ReadFile(serialPort, &c, 1, &iSize, NULL);
+			dataBuffer[i++] = c;
+		} while (iSize > 0);
+		
 		BOOL iRet = WriteFile(dataFile, dataBuffer, iSize, wrSize, NULL);
 	}
 	
@@ -277,7 +280,7 @@ int main(int argc, TCHAR* argv[])
 {
 	HANDLE hSerial;
 	HANDLE file;
-	file = ::CreateFile(FileName, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+	file = ::CreateFile(DATAFILENAME, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 	hSerial = ComPortOpen();
 	const int strSize = 128;
 	
@@ -299,7 +302,7 @@ int main(int argc, TCHAR* argv[])
 
 	//TODO: try-catch
 	
-	while (!CreateServer(port, adress)) {               //  Создание сервера. На вход порт и IP
+	while (!CreateServer(SOCKETPORT, HOSTIP)) {               //  Создание сервера. На вход порт и IP
 		Sleep(1000);
 		cout << "You'll newer see me ;)" << endl;
 	}
