@@ -9,25 +9,6 @@
 
 using namespace std;
 
-SOCKET s;
-SOCKET clientSock;
-
-int ReadingFlag = 1;
-DWORD iSize;
-
-#define ERRCODE_UNKNOWNCOMMAND ((DWORD)22)
-#define ERRCODE_NOMEMORY ((DWORD)39)
-#define ERRCODE_READWRITEINTERUUPT ((DWORD)995)
-#define ERRCODE_NONSOCKETOBJECT ((DWORD)10038)
-#define ERRCODE_HOSTCONNECTIONLOST ((DWORD)10053)
-#define HOSTIP ((char*)"192.168.0.106")
-#define DATAFILENAME ((LPCTSTR)L"info.txt")
-#define COMPORTNAME ((LPCTSTR)L"COM3")
-#define SOCKETPORT ((int)2121)
-
-
-//TODO: параметры переместить в config-файл (*.h)
-
 class RingBuffer
 {
 private:
@@ -123,15 +104,15 @@ void DCBConfigure(DCB* dcbSerialParams, HANDLE serialPort)
 	cout << "DCB params set\n";
 }
 
-void Ending(HANDLE serialPort, HANDLE dataFile)
+void Ending(HANDLE serialPort, HANDLE dataFile, int* readingFlag)
 {
-	ReadingFlag = 0;
+	readingFlag = 0;
 	CloseHandle(serialPort);
 	CloseHandle(dataFile);
 	cout << "Programm finished\n";
 }
 
-bool ConnectToHost(int PortNo, char* IPAddress)
+bool ConnectToHost(int PortNo, char* IPAddress, SOCKET s)
 {
 	WSADATA wsadata;
 
@@ -168,7 +149,7 @@ bool ConnectToHost(int PortNo, char* IPAddress)
 		return true;
 }
 
-bool CreateServer(int PortNo, char* IPAddress)
+bool CreateServer(int PortNo, char* IPAddress, SOCKET *s)
 {
 	WSADATA wsadata;
 
@@ -189,16 +170,16 @@ bool CreateServer(int PortNo, char* IPAddress)
 	target.sin_port = htons(PortNo);
 	target.sin_addr.s_addr = inet_addr(IPAddress);
 
-	s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	*s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-	if (s == INVALID_SOCKET)
+	if (*s == INVALID_SOCKET)
 	{
 		return false;
 	}
 
-	bind(s, (SOCKADDR*)&target, sizeof(target));
+	bind(*s, (SOCKADDR*)&target, sizeof(target));
 
-	if (listen(s, 10) == SOCKET_ERROR)
+	if (listen(*s, 10) == SOCKET_ERROR)
 	{
 		return false;
 	}
@@ -208,7 +189,7 @@ bool CreateServer(int PortNo, char* IPAddress)
 	}
 }
 
-void CloseConnection()
+void CloseConnection(SOCKET s)
 {
 	if (s)
 		closesocket(s);
@@ -216,7 +197,7 @@ void CloseConnection()
 	WSACleanup();
 }
 
-void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
+void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile, SOCKET clientSock, SOCKET s, DWORD *iSize)
 {
 	OFSTRUCT Buff = { 0 };
     int strSize;
@@ -232,18 +213,18 @@ void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 		if (GetLastError() == ERRCODE_HOSTCONNECTIONLOST)
 		{
 			cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
-			ReadFile(serialPort, dataBuffer, 1, &iSize, NULL);
+			ReadFile(serialPort, dataBuffer, 1, iSize, NULL);
 			if (iSize > 0) {
 				cout << iSize << " bytes accept\n";
-				for (int i = 0; i < iSize; i++) {
+				for (int i = 0; i < *iSize; i++) {
 					cout << dataBuffer[i];
 					buffer.Write(dataBuffer[i]);
 				}
 				cout << "\n";
 			}
-			BOOL iRet = WriteFile(dataFile, dataBuffer, iSize, wrSize, NULL);
-			CloseConnection();
-			CreateServer(SOCKETPORT, HOSTIP);
+			BOOL iRet = WriteFile(dataFile, dataBuffer, *iSize, wrSize, NULL);
+			CloseConnection(s);
+			CreateServer(SOCKETPORT, HOSTIP, &s);
 			clientSock = accept(s, NULL, NULL);
 				for (uint16_t i = 0; i < buffer.Count(); i++) {
 				buffer.Read(dataBuffer[i]);
@@ -251,15 +232,7 @@ void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 		} 
 		else 
 		{
-			if (GetLastError() == ERRCODE_NOMEMORY)
-			{
-				cout << "No memory\n";
-				Ending(serialPort, dataFile);
-			}
-			else
-			{
-				cout << "Some other error on reading.\n" << GetLastError() << "\n";
-			}
+			cout << "Some other error on reading.\n" << GetLastError() << "\n";
 		}
 	}
 	else
@@ -267,22 +240,26 @@ void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile)
 		char c;
 		int i = 0;
 		do {
-			ReadFile(serialPort, &c, 1, &iSize, NULL);
+			ReadFile(serialPort, &c, 1, iSize, NULL);
 			dataBuffer[i++] = c;
-		} while (iSize > 0);
+		} while (*iSize > 0);
 		
-		BOOL iRet = WriteFile(dataFile, dataBuffer, iSize, wrSize, NULL);
+		BOOL iRet = WriteFile(dataFile, dataBuffer, *iSize, wrSize, NULL);
 	}
 	
 }
 
 int main(int argc, TCHAR* argv[])
 {
+	SOCKET s;
+	SOCKET clientSock;
 	HANDLE hSerial;
 	HANDLE file;
+	DWORD iSize;
+	const int strSize = 128;
+	int readingFlag = 1;
 	file = ::CreateFile(DATAFILENAME, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 	hSerial = ComPortOpen();
-	const int strSize = 128;
 	
 	while (hSerial == INVALID_HANDLE_VALUE)
 	{
@@ -302,7 +279,7 @@ int main(int argc, TCHAR* argv[])
 
 	//TODO: try-catch
 	
-	while (!CreateServer(SOCKETPORT, HOSTIP)) {               //  Создание сервера. На вход порт и IP
+	while (!CreateServer(SOCKETPORT, HOSTIP, &s)) {               //  Создание сервера. На вход порт и IP
 		Sleep(1000);
 		cout << "You'll newer see me ;)" << endl;
 	}
@@ -315,7 +292,7 @@ int main(int argc, TCHAR* argv[])
 		char recivedData[strSize];
 		
 		try {
-			ReadCom(recivedData, hSerial, file);
+			ReadCom(recivedData, hSerial, file, clientSock, s, &iSize);
 			for (int i = 0; i < iSize; i++) {
 				char a = recivedData[i];
 				cout << a;
@@ -354,11 +331,11 @@ int main(int argc, TCHAR* argv[])
 
 	char recivedData[strSize];
 
-	while (ReadingFlag)
+	while (readingFlag)
 	{
 		if (send(clientSock, "", 1, 0) != -1) {
 			try {
-				ReadCom(recivedData, hSerial, file);
+				ReadCom(recivedData, hSerial, file, clientSock, s, &iSize);
 				sendedBytes = send(clientSock, recivedData, iSize, 0);
 				if (sendedBytes != 0) {
 					cout << sendedBytes << " bytes sended to socket\n";
@@ -386,7 +363,7 @@ int main(int argc, TCHAR* argv[])
 		} else {
 			cout << "Connection lost";
 		try {
-			ReadCom(recivedData, hSerial, file);
+			ReadCom(recivedData, hSerial, file, clientSock, s, &iSize);
 			for (int i = 0; i < iSize; i++) {
 				char a = recivedData[i];
 				cout << a;
@@ -394,6 +371,12 @@ int main(int argc, TCHAR* argv[])
 			}
 		}
 		catch (runtime_error e){
+			if (GetLastError() == ERRCODE_NOMEMORY)
+			{
+				cout << "No memory\n";
+				Ending(hSerial, file, &readingFlag);
+				break;
+			}
 			cout << e.what();
 			CloseHandle(hSerial);
 			while (GetLastError())
