@@ -197,37 +197,37 @@ void CloseConnection(SOCKET s)
 	WSACleanup();
 }
 
-void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile, SOCKET clientSock, SOCKET s, DWORD *iSize)
+void ReadCom(char** recivedChar, HANDLE serialPort, HANDLE dataFile, SOCKET clientSock, SOCKET s, DWORD *iSize)
 {
 	OFSTRUCT Buff = { 0 };
     int strSize;
 	LPDWORD wrSize=0;
+	char dataBuffer[STR_BUFFER_SIZE];
 
 	if ((GetLastError()) && (GetLastError() != ERRCODE_NONSOCKETOBJECT))
 	{
-		if (GetLastError() == ERRCODE_READWRITEINTERUUPT || GetLastError() == ERRCODE_UNKNOWNCOMMAND)
+		if (GetLastError() == ERRCODE_READWRITEINTERUUPT || GetLastError() == ERRCODE_UNKNOWNCOMMAND || GetLastError() == ERRCODE_NOMEMORY)
 		{
-			cout << "\nCom-port connection lost.\n" << GetLastError() << "\n";
 			throw (runtime_error("Exception throwed\n"));
 		}
 		if (GetLastError() == ERRCODE_HOSTCONNECTIONLOST)
 		{
 			cout << "\n\nClient connection lost, waiting for next connection\n\n" << GetLastError() << "\n";
-			ReadFile(serialPort, dataBuffer, 1, iSize, NULL);
+			ReadFile(serialPort, recivedChar, 1, iSize, NULL);
 			if (iSize > 0) {
 				cout << iSize << " bytes accept\n";
 				for (int i = 0; i < *iSize; i++) {
-					cout << dataBuffer[i];
-					buffer.Write(dataBuffer[i]);
+					cout << recivedChar[i];
+					buffer.Write(*recivedChar[i]);
 				}
 				cout << "\n";
 			}
-			BOOL iRet = WriteFile(dataFile, dataBuffer, *iSize, wrSize, NULL);
+			BOOL iRet = WriteFile(dataFile, recivedChar, *iSize, wrSize, NULL);
 			CloseConnection(s);
 			CreateServer(SOCKETPORT, HOSTIP, &s);
 			clientSock = accept(s, NULL, NULL);
 				for (uint16_t i = 0; i < buffer.Count(); i++) {
-				buffer.Read(dataBuffer[i]);
+				buffer.Read(*recivedChar[i]);
 			}
 		} 
 		else 
@@ -237,16 +237,13 @@ void ReadCom(char* dataBuffer, HANDLE serialPort, HANDLE dataFile, SOCKET client
 	}
 	else
 	{
-		char c;
-		int i = 0;
-		do {
-			ReadFile(serialPort, &c, 1, iSize, NULL);
-			dataBuffer[i++] = c;
-		} while (*iSize > 0);
-		
+		ReadFile(serialPort, dataBuffer, STR_BUFFER_SIZE, iSize, NULL);
 		BOOL iRet = WriteFile(dataFile, dataBuffer, *iSize, wrSize, NULL);
+		*recivedChar = dataBuffer;
+		for (int i = 0; i < *iSize; i++) {
+			cout << dataBuffer[i];
+		}
 	}
-	
 }
 
 int main(int argc, TCHAR* argv[])
@@ -256,7 +253,6 @@ int main(int argc, TCHAR* argv[])
 	HANDLE hSerial;
 	HANDLE file;
 	DWORD iSize;
-	const int strSize = 128;
 	int readingFlag = 1;
 	file = ::CreateFile(DATAFILENAME, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
 	hSerial = ComPortOpen();
@@ -285,14 +281,14 @@ int main(int argc, TCHAR* argv[])
 	}
 
 	clientSock = accept(s, NULL, NULL);
+	char* recivedData;
+	char recivedSTR[STR_BUFFER_SIZE];
 
 	while (clientSock == AF_UNSPEC) {
 		clientSock = accept(s, NULL, NULL);
 		LPDWORD wrSize = 0;
-		char recivedData[strSize];
-		
 		try {
-			ReadCom(recivedData, hSerial, file, clientSock, s, &iSize);
+			ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
 			for (int i = 0; i < iSize; i++) {
 				char a = recivedData[i];
 				cout << a;
@@ -329,19 +325,23 @@ int main(int argc, TCHAR* argv[])
 
 	int sendedBytes;
 
-	char recivedData[strSize];
-
 	while (readingFlag)
 	{
 		if (send(clientSock, "", 1, 0) != -1) {
 			try {
-				ReadCom(recivedData, hSerial, file, clientSock, s, &iSize);
+				ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
 				sendedBytes = send(clientSock, recivedData, iSize, 0);
 				if (sendedBytes != 0) {
-					cout << sendedBytes << " bytes sended to socket\n";
+					cout << "\n" << sendedBytes << " bytes sended to socket\n";
 				}
 			}
 			catch (runtime_error e) {
+				if (GetLastError() == ERRCODE_NOMEMORY)
+				{
+					cout << "No memory\n";
+					Ending(hSerial, file, &readingFlag);
+					break;
+				}
 				cout << e.what();
 				CloseHandle(hSerial);
 				while (GetLastError())
@@ -363,7 +363,7 @@ int main(int argc, TCHAR* argv[])
 		} else {
 			cout << "Connection lost";
 		try {
-			ReadCom(recivedData, hSerial, file, clientSock, s, &iSize);
+			ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
 			for (int i = 0; i < iSize; i++) {
 				char a = recivedData[i];
 				cout << a;

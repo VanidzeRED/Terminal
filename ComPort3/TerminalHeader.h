@@ -8,3 +8,4 @@
 #define DATAFILENAME ((LPCTSTR)L"info.txt")
 #define COMPORTNAME ((LPCTSTR)L"COM3")
 #define SOCKETPORT ((int)2121)
+#define STR_BUFFER_SIZE ((int) 128)
