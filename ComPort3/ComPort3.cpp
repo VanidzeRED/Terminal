@@ -223,16 +223,10 @@ void ReadCom(char** recivedChar, HANDLE serialPort, HANDLE dataFile, SOCKET clie
 				cout << "\n";
 			}
 			BOOL iRet = WriteFile(dataFile, recivedChar, *iSize, wrSize, NULL);
-			CloseConnection(s);
-			CreateServer(SOCKETPORT, HOSTIP, &s);
-			clientSock = accept(s, NULL, NULL);
-				for (uint16_t i = 0; i < buffer.Count(); i++) {
-				buffer.Read(*recivedChar[i]);
-			}
 		} 
 		else 
 		{
-			cout << "Some other error on reading.\n" << GetLastError() << "\n";
+			cout << "Some unknown error on reading.\n" << GetLastError() << "\n";
 		}
 	}
 	else
@@ -264,7 +258,7 @@ int main(int argc, TCHAR* argv[])
 			cout << "Serial port does not exist.\n";
 		}
 		else {
-			cout << "Some other error on opening.\n" << GetLastError() << "\n";
+			cout << "Some unknown error on opening.\n" << GetLastError() << "\n";
 		}
 		Sleep(1000);
 		hSerial = ComPortOpen();
@@ -290,12 +284,16 @@ int main(int argc, TCHAR* argv[])
 		try {
 			ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
 			for (int i = 0; i < iSize; i++) {
-				char a = recivedData[i];
-				cout << a;
 				buffer.Write(recivedData[i]);
 			}
 		}
 		catch (runtime_error e) {
+			if (GetLastError() == ERRCODE_NOMEMORY)
+			{
+				cout << "No memory\n";
+				Ending(hSerial, file, &readingFlag);
+				break;
+			}
 			cout << e.what();
 			CloseHandle(hSerial);
 			while (GetLastError())
@@ -364,10 +362,11 @@ int main(int argc, TCHAR* argv[])
 			cout << "Connection lost";
 		try {
 			ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
-			for (int i = 0; i < iSize; i++) {
-				char a = recivedData[i];
-				cout << a;
-				buffer.Write(recivedData[i]);
+			CloseConnection(s);
+			CreateServer(SOCKETPORT, HOSTIP, &s);
+			clientSock = accept(s, NULL, NULL);
+			for (uint16_t i = 0; i < buffer.Count(); i++) {
+				buffer.Read(recivedData[i]);
 			}
 		}
 		catch (runtime_error e){
