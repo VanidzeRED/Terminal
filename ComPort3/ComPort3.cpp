@@ -197,7 +197,7 @@ void CloseConnection(SOCKET s)
 	WSACleanup();
 }
 
-void ReadCom(char** recivedChar, HANDLE serialPort, HANDLE dataFile, SOCKET clientSock, SOCKET s, DWORD *iSize)
+void ReadCom(char** recivedChar, HANDLE serialPort, HANDLE dataFile, DWORD *iSize)
 {
 	OFSTRUCT Buff = { 0 };
     int strSize;
@@ -282,7 +282,7 @@ int main(int argc, TCHAR* argv[])
 		clientSock = accept(s, NULL, NULL);
 		LPDWORD wrSize = 0;
 		try {
-			ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
+			ReadCom(&recivedData, hSerial, file, &iSize);
 			for (int i = 0; i < iSize; i++) {
 				buffer.Write(recivedData[i]);
 			}
@@ -327,7 +327,7 @@ int main(int argc, TCHAR* argv[])
 	{
 		if (send(clientSock, "", 1, 0) != -1) {
 			try {
-				ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
+				ReadCom(&recivedData, hSerial, file, &iSize);
 				sendedBytes = send(clientSock, recivedData, iSize, 0);
 				if (sendedBytes != 0) {
 					cout << "\n" << sendedBytes << " bytes sended to socket\n";
@@ -361,7 +361,7 @@ int main(int argc, TCHAR* argv[])
 		} else {
 			cout << "Connection lost";
 		try {
-			ReadCom(&recivedData, hSerial, file, clientSock, s, &iSize);
+			ReadCom(&recivedData, hSerial, file, &iSize);
 			CloseConnection(s);
 			CreateServer(SOCKETPORT, HOSTIP, &s);
 			clientSock = accept(s, NULL, NULL);

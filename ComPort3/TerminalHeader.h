@@ -6,6 +6,6 @@
 #define ERRCODE_HOSTCONNECTIONLOST ((DWORD)10053)
 #define HOSTIP ((char*)"192.168.0.106")
 #define DATAFILENAME ((LPCTSTR)L"info.txt")
-#define COMPORTNAME ((LPCTSTR)L"COM3")
+#define COMPORTNAME ((LPCTSTR)L"COM1")
 #define SOCKETPORT ((int)2121)
 #define STR_BUFFER_SIZE ((int) 128)
